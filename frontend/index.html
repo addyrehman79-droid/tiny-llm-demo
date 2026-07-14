@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiny LLM — a small model that writes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --parchment: #EDE4D2;
+    --parchment-dim: #E2D6BE;
+    --ink: #211C16;
+    --ink-soft: #4A4235;
+    --wax: #8C2F1B;
+    --gold: #A9873F;
+    --line: #C9BB9C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--parchment);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(0,0,0,0.03), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(0,0,0,0.04), transparent 45%);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 56px 24px 80px;
+  }
+  header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  .eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--wax);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: clamp(32px, 6vw, 46px);
+    line-height: 1.05;
+    margin: 0 0 14px;
+  }
+  h1 em { font-style: italic; color: var(--ink-soft); font-weight: 400; }
+  .sub {
+    color: var(--ink-soft);
+    font-size: 15.5px;
+    line-height: 1.55;
+    max-width: 58ch;
+  }
+  .sub code {
+    font-family: 'Space Mono', monospace;
+    background: var(--parchment-dim);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+  label {
+    display: block;
+    font-family: 'Space Mono', monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+  textarea {
+    width: 100%;
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    padding: 14px 16px;
+    background: #F7F1E3;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--ink);
+    resize: vertical;
+    min-height: 64px;
+  }
+  textarea:focus, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--wax);
+    outline-offset: 1px;
+  }
+  .controls {
+    display: flex;
+    gap: 20px;
+    margin: 18px 0 4px;
+    flex-wrap: wrap;
+  }
+  .field { flex: 1; min-width: 140px; }
+  .field input[type="range"] { width: 100%; accent-color: var(--wax); }
+  .field .val { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--ink-soft); }
+  .actions {
+    margin-top: 22px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  button {
+    font-family: 'Space Mono', monospace;
+    font-size: 13.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: var(--wax);
+    color: var(--parchment);
+    border: none;
+    padding: 13px 26px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease;
+  }
+  button:hover { background: #742411; }
+  button:active { transform: translateY(1px); }
+  button:disabled { background: var(--line); color: var(--ink-soft); cursor: wait; }
+  .status { font-family: 'Space Mono', monospace; font-size: 12.5px; color: var(--ink-soft); }
+  .status.err { color: var(--wax); }
+
+  .output {
+    margin-top: 40px;
+    border-top: 1px solid var(--line);
+    padding-top: 28px;
+  }
+  .output .eyebrow { margin-bottom: 14px; }
+  .page {
+    background: #F7F1E3;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 28px 30px;
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    min-height: 120px;
+    box-shadow: 0 1px 0 var(--line);
+  }
+  .page .prompt-part { color: var(--wax); font-weight: 700; }
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1em;
+    background: var(--ink);
+    vertical-align: text-bottom;
+    animation: blink 0.9s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .empty { color: var(--ink-soft); font-style: italic; }
+
+  footer {
+    margin-top: 50px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <p class="eyebrow">tiny llm — demo</p>
+      <h1>A model small enough<br><em>to watch itself think.</em></h1>
+      <p class="sub">This is a character-level GPT with well under 1M parameters, trained on Shakespeare for a few minutes on a free Colab GPU. Give it a few opening characters and it will finish the thought, one letter at a time — the same way it was trained to.</p>
+    </header>
+
+    <div>
+      <label for="prompt">Opening text</label>
+      <textarea id="prompt" placeholder="ROMEO:">ROMEO:</textarea>
+
+      <div class="controls">
+        <div class="field">
+          <label for="length">Length <span class="val" id="lengthVal">200</span></label>
+          <input type="range" id="length" min="20" max="500" value="200" step="10">
+        </div>
+        <div class="field">
+          <label for="temp">Temperature <span class="val" id="tempVal">0.8</span></label>
+          <input type="range" id="temp" min="0.1" max="1.5" value="0.8" step="0.1">
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="genBtn">Generate</button>
+        <span class="status" id="statusEl">Backend: checking…</span>
+      </div>
+    </div>
+
+    <div class="output">
+      <p class="eyebrow">Output</p>
+      <div class="page" id="pageEl"><span class="empty">Nothing written yet — press Generate.</span></div>
+    </div>
+
+    <footer>
+      backend endpoint: <span id="endpointLabel">http://localhost:8000</span> · edit API_URL in this file to point elsewhere
+    </footer>
+  </div>
+
+<script>
+  // Point this at wherever backend/app.py is running.
+  const API_URL = "http://localhost:8000";
+
+  const promptEl = document.getElementById('prompt');
+  const lengthEl = document.getElementById('length');
+  const lengthVal = document.getElementById('lengthVal');
+  const tempEl = document.getElementById('temp');
+  const tempVal = document.getElementById('tempVal');
+  const genBtn = document.getElementById('genBtn');
+  const statusEl = document.getElementById('statusEl');
+  const pageEl = document.getElementById('pageEl');
+  document.getElementById('endpointLabel').textContent = API_URL;
+
+  lengthEl.addEventListener('input', () => lengthVal.textContent = lengthEl.value);
+  tempEl.addEventListener('input', () => tempVal.textContent = tempEl.value);
+
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_URL}/health`);
+      const data = await res.json();
+      statusEl.textContent = data.model_loaded ? `Backend: online (${data.device})` : 'Backend: model not loaded';
+      statusEl.classList.remove('err');
+    } catch (e) {
+      statusEl.textContent = 'Backend: unreachable — is app.py running?';
+      statusEl.classList.add('err');
+    }
+  }
+  checkHealth();
+
+  function typewrite(promptLen, fullText) {
+    pageEl.innerHTML = '';
+    const promptSpan = document.createElement('span');
+    promptSpan.className = 'prompt-part';
+    const restSpan = document.createElement('span');
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    pageEl.appendChild(promptSpan);
+    pageEl.appendChild(restSpan);
+    pageEl.appendChild(cursor);
+
+    let i = 0;
+    const timer = setInterval(() => {
+      if (i >= fullText.length) { clearInterval(timer); return; }
+      const ch = fullText[i];
+      if (i < promptLen) promptSpan.textContent += ch;
+      else restSpan.textContent += ch;
+      i++;
+    }, 14);
+  }
+
+  async function generate() {
+    const prompt = promptEl.value || 'ROMEO:';
+    genBtn.disabled = true;
+    genBtn.textContent = 'Writing…';
+    try {
+      const res = await fetch(`${API_URL}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          max_new_tokens: parseInt(lengthEl.value, 10),
+          temperature: parseFloat(tempEl.value),
+          top_k: 40
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Request failed (${res.status})`);
+      }
+      const data = await res.json();
+      typewrite(prompt.length, data.completion);
+      statusEl.textContent = 'Backend: online';
+      statusEl.classList.remove('err');
+    } catch (e) {
+      pageEl.innerHTML = `<span class="empty">Error: ${e.message}</span>`;
+      statusEl.textContent = 'Backend: request failed';
+      statusEl.classList.add('err');
+    } finally {
+      genBtn.disabled = false;
+      genBtn.textContent = 'Generate';
+    }
+  }
+
+  genBtn.addEventListener('click', generate);
+</script>
+</body>
+</html>
